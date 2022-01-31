@@ -1,0 +1,129 @@
+// Copyright 2012 Mark Armbrust.  Permission granted
+// for educational use.
+
+/** Demonstration program for Float class. */
+
+class Main 
+{
+
+	function void main()
+	{
+		do Float.init();	// Must be called before using Floats.
+
+		if (~FloatTest.test()) {
+			return; }
+		do Output.println();
+
+		do Main.phi();
+		do Output.println();
+		do Main.factorial();
+		do Output.println();
+		do Main.e_to_the_x();
+		return;
+	}
+
+
+	/**	Compute and print golden ratio phi = (sqrt(5)+1)/2 */
+
+	function void phi()
+	{
+		var Float f;
+		let f = Float.new();
+		do f.setInt(5);
+		do f.sqrt();
+		do f.addInt(1);
+		do f.divInt(2);
+		do Output.printString("phi = ");
+		do f.print(10);
+		do Output.println();
+		do f.dispose();
+		return;
+	}
+
+
+	/**	Compute and print the first 10 factorial numbers.
+	 *	The numbers are printed with a varing number of digits.
+	 *	Finally prints 97! which is the largest factorial that
+	 *	fits in a Float.
+	 */
+
+	function void factorial()
+	{
+		var Float a;
+		var Float b;
+		var String str;
+		var int i;
+		let a=Float.new();
+		let b=Float.new();
+		let str = "! = ";
+
+		do a.setInt(1);
+		let i = 1;
+		while (i<100) {
+			do b.setInt(i);
+			do a.mult(b);
+			if ((i<11) | (i=98)) {
+				do Output.printInt(i);
+				do Output.printString(str);
+				do a.print(i-1);
+				do Output.println();
+			}
+			let i = i+1;
+		}
+		do Output.printInt(i-1);
+		do Output.printString(str);
+		do a.print(10);
+		do Output.println();
+		do a.dispose();
+		do b.dispose();
+		return;
+	}
+
+
+	/**	Compute and print e^x using the Taylor series expansion
+	 *	e^x = x^0/0! + x^1/1! + x^2/2! ... + x^n/n! + ...
+	 */
+
+	function void e_to_the_x()
+	{
+		var Float e;
+		var Float ee;
+		var Float term;
+		var int i;
+		var int p;
+
+		let e = Float.new();
+		let ee = Float.new();
+		let term = Float.new();
+
+		let p = 1;
+		while (p<6) {
+			do Output.printChar(101);	//'e'
+			do Output.printChar(94);	//'^'
+			do Output.printInt(p);
+			do Output.printChar(32);	//' '
+			do Output.printChar(61);	//'='
+			do Output.printChar(32);	//' '
+
+			do e.setInt(1);
+			do term.setInt(1);
+			let i=1;
+			while (~(e.compare(ee)=0)) {
+				do ee.set(e);
+				do term.multInt(p);
+				do term.divInt(i);
+				do e.add(term);
+				let i = i+1;
+			}
+			do e.print(10);
+			do Output.println();
+
+			let p = p+1;
+		}		
+		do e.dispose();
+		do ee.dispose();
+		do term.dispose();
+		return;
+	}
+
+}

@@ -1,0 +1,894 @@
+// Copyright 2012 Mark Armbrust.  Permission granted
+// for educational use.
+
+/** Test routines for Float class */
+
+class FloatTest
+{
+	static int MIN_INT;
+	static String is;
+	static String s_b;
+
+	function bool test()
+	{
+		var int result;
+
+		let MIN_INT = (-32767)-1;		// 0x8000
+		let is = "is ";
+		let s_b = "s/b ";
+
+		do Output.printString("Running floating point tests.");
+		do Output.println();
+
+		let result = FloatTest.testMantissa();
+		if (result>0) {
+			do Output.printString("testMantissa() failed test ");
+			do Output.printInt(result);
+			return false;
+		}
+
+		let result = FloatTest.testFloats();
+		if (result>0) {
+			do Output.printString("testFloats() failed test ");
+			do Output.printInt(result);
+			return false;
+		}
+
+		let result = FloatTest.testRounding();
+		if (result>0) {
+			do Output.printString("testRounding() failed test ");
+			do Output.printInt(result);
+			return false;
+		}
+
+		let result = FloatTest.testConversion();
+		if (result>0) {
+			do Output.printString("testConversion() failed test ");
+			do Output.printInt(result);
+			return false;
+		}
+
+		do Output.moveCursor(0,0);
+		do Output.printString("All floating point tests passed.");
+		do Output.println();
+		return true;
+	}
+
+	
+	function int testMantissa()
+	{
+		var Float f;
+		var Float g;
+		var Float h;
+		var int r;
+		var int r1;
+		var int r2;
+		var int r3;
+		var int r4;
+
+		let f = Float._newConst(12,34,56);	// test 1: _mant_set
+		let g = Float._newConst(54,32,10);
+		do g._mant_set(f);
+		if (~((g._msw()=12) & (g._lsw()=34) & (g._exp()=10))) {
+			do g._dump();
+			return 1; }
+
+		do g._mant_setInt(123);				// test 2: _mant_setInt +int
+		if (~((g._msw()=0) & (g._lsw()=123) & (g._exp()=10))) {
+			do g._dump();
+			return 2; }
+
+		do g._mant_setInt(-456);			// test 3: _mant_setInt -int
+		if (~((g._msw()=-1) & (g._lsw()=-456) & (g._exp()=10))) {
+			do g._dump();
+			return 3; }
+
+		do f._setConst(MIN_INT,0,0);		// test 4: _mant_isMaxNeg
+		do g._setConst(MIN_INT,1,0);
+		let h = Float.new();	// (0,0,0)
+		if (~( f._mant_isMaxNeg() & (~g._mant_isMaxNeg()) & (~h._mant_isMaxNeg()) )) {
+			return 4; }
+
+		do f._setConst(16384,0,0);			// test 5: _mant_bit30
+		do g._setConst(0,0,0);
+		if (~( f._mant_bit30() & (~g._mant_bit30()) )) {
+			return 5; }
+		
+		do f._setConst(-32645,321,12);		// test 6: _mant_SHL1 carry out
+		let r = f._mant_SHL1();
+		if (~( (r=1) & (f._msw()=246) & (f._lsw()=642) & (f._exp()=12) )) {
+			do f._dump();
+			return 6; }
+
+		do g._setConst(321,-32645,34);		// test 7: _mant_SHL1 carry between
+		let r = g._mant_SHL1();
+		if (~( (r=0) & (g._msw()=643) & (g._lsw()=246) & (g._exp()=34) )) {
+			do g._dump();
+			return 7; }
+
+		do f._setConst(-32645,321,12);		// test 8: _mant_SHR1
+		do f._mant_SHR1();
+		if (~( (f._msw()=16445) & (f._lsw()=-32608) & (f._exp()=12) )) {
+			do f._dump();
+			return 8; }
+
+		do f._setConst(-32645,321,12);		// test 9: _mant_SRA -value
+		do f._mant_SRA(7);
+		if (~( (f._msw()=-256) & (f._lsw()=-2558) & (f._exp()=12) )) {
+			do f._dump();
+			return 9; }
+
+		do f._setConst(32123, -32645,12);	// test 10: _mant_SRA +value
+		do f._mant_SRA(17);
+		if (~( (f._msw()=0) & (f._lsw()=16061) & (f._exp()=12) )) {
+			do f._dump();
+			return 10; }
+
+
+		do f._setConst(10,-32767,56);		// test 11: _mant_add carry between G
+		do g._setConst(11,-32766,78);
+		let r = g._mant_add(f);
+		if (~( (r=0) & (g._msw()=22) & (g._lsw()=3) & (g._exp()=78) )) {
+			do g._dump();
+			return 11; }
+
+		do f._setConst(-32767,16384,56);	// test 12: _mant_add carry between P01
+		do g._setConst(-32766,-16384,78);	//					  carry out G
+		let r = g._mant_add(f);
+		if (~( (r=1) & (g._msw()=4) & (g._lsw()=0) & (g._exp()=78) )) {
+			do g._dump();
+			return 12; }
+
+		do f._setConst(16384,-16384,56);	// test 13: _mant_add carry between P10
+		do g._setConst(-16384,16384,78);	//					  carry out P01
+		let r = g._mant_add(f);
+		if (~( (r=1) & (g._msw()=1) & (g._lsw()=0) & (g._exp()=78) )) {
+			do g._dump();
+			return 13; }
+
+		do f._setConst(-16384,10,56);		// test 14: _mant_add carry out P10
+		do g._setConst(16384,11,78);
+		let r = g._mant_add(f);
+		if (~( (r=1) & (g._msw()=0) & (g._lsw()=21) & (g._exp()=78) )) {
+			do g._dump();
+			return 14; }
+
+		do g._setConst(123,456,78);			// test 15: _mant_addInt
+		do g._mant_addInt(910);
+		do g._mant_addInt(-11);
+		if (~( (g._msw()=123) & (g._lsw()=1355) & (g._exp()=78) )) {
+			do g._dump();
+			return 15; }
+
+		do f._setConst(987,654,32);			// test 16: _mant_sub
+		do g._setConst(123,456,78);
+		do f._mant_sub(g);
+		if (~( (f._msw()=864) & (f._lsw()=198) & (f._exp()=32) )) {
+			do f._dump();
+			return 16; }
+
+		do f._setConst(0,0,32);				// test 17: _mant_ucompare LSW
+		do g._setConst(0,0,78);
+		let r1 = f._mant_ucompare(g);
+		do f._setConst(0,123,32);
+		do g._setConst(0,456,78);
+		let r2 = f._mant_ucompare(g);
+		do f._setConst(0,-123,32);		// 65413
+		do g._setConst(0,456,78);
+		let r3 = f._mant_ucompare(g);
+		do f._setConst(0,456,78);
+		do g._setConst(0,-123,32);		// 65413
+		let r4 = f._mant_ucompare(g);
+		if (~( (r1=0) & (r2=-1) & (r3=1) & (r4=-1) )) {
+			return 17; }
+
+		do f._setConst(123,0,32);			// test 18: _mant_ucompare MSW
+		do g._setConst(456,0,78);
+		let r2 = f._mant_ucompare(g);
+		do f._setConst(-123,0,32);		// 65413
+		do g._setConst(456,0,78);
+		let r3 = f._mant_ucompare(g);
+		do f._setConst(456,0,78);
+		do g._setConst(-123,0,32);		// 65413
+		let r4 = f._mant_ucompare(g);
+		if (~( (r2=-1) & (r3=1) & (r4=-1) )) {
+			return 18; }
+
+		// test 19: _mant_longUmult		789a 4321 * 6789 cba9 = 30c6 fb82 24ba 7bc9
+
+		do f._setConst(30874,17185,32);
+		do g._setConst(26505,-13399,78);
+		do f._mant_longUmult(g);
+		if (~( (f._msw()=12486) & (f._lsw()=-1150) & (f._exp()=32) &
+			   (g._msw()=9402) & (g._lsw()=31689) & (g._exp()=78) )) {
+			do f._dump();
+			do g._dump();
+			return 19; }
+
+
+		do f.dispose();
+		do g.dispose();
+		do h.dispose();
+		return 0;
+	}
+
+
+	function int testFloats()
+	{
+		var Float f;
+		var Float g;
+		var int r;
+
+		let f = Float.new();				// test 1: newFloat
+		do f._setConst(1,2,3);
+		let g = Float.newFloat(f);
+		do f._setConst(0,0,0);
+		if (~( (g._msw()=1) & (g._lsw()=2) & (g._exp()=3) )) {
+			do f._dump();
+			return 1; }
+
+		do f._setConst(5,6,7);				// test 2: set
+		do g.set(f);
+		if (~( (g._msw()=5) & (g._lsw()=6) & (g._exp()=7) )) {
+			do f._dump();
+			return 2; }
+
+		do f._setConst(0,0,12);				// test 201: isZero
+		do g._setConst(1,0,-12);
+		if ((~f.isZero()) | g.isZero() ) {
+			return 201; }
+
+		do f._setConst(-1,0,12);			// test 202: isNeg
+		do g._setConst(1,0,-12);
+		if ((~f.isNeg()) | g.isNeg() ) {
+			return 202; }
+
+		do f._setConst(1,0,12);				// test 203: isPos
+		do g._setConst(-1,0,-12);
+		if ((~f.isPos()) | g.isPos() ) {
+			return 203; }
+											// test 300: _normalize: no shift
+		do f._setConst(24576,0,0);	// 60000000
+		do g._setConst(24576,0,0);	// 60000000
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 300; }
+											// test 301: _normalize: shift 1
+		do f._setConst(12288,0,0);	// 30000000
+		do g._setConst(24576,0,-1);	// 60000000
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 301; }
+											// test 302: _normalize: shift 30
+		do f._setConst(0,1,0);		// 00000001
+		do g._setConst(16384,0,-30);// 40000000
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 302; }
+											// test 303: _normalize: -# no shift
+		do f._setConst(-28672,0,0);	// 90000000
+		do g._setConst(-28672,0,0);	// 90000000
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 303; }
+											// test 304: _normalize: -# shift 1
+		do f._setConst(-14336,0,0);	// C8000000
+		do g._setConst(-28672,0,-1);// 90000000
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 304; }
+											// test 305: _normalize: -# shift 30
+		do f._setConst(-1,-2,0);	// FFFFFFFE
+		do g._setConst(-16384,0,-29);// C0000000	special case: 80000000 not allowed
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 305; }
+											// test 306: _normalize: 0
+		do f._setConst(0,0,0);		// 00000000
+		do g._setConst(0,0,-512);	// 00000000		special case: min. exp.
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 306; }
+											// test 307: _normalize: underflow
+		do f._setConst(0,1,-500);	// 00000001^-500
+		do g._setConst(0,0,-512);	// 00000000		special case: min. exp.
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 307; }
+											// test 308: _normalize: arg underflow
+		do f._setConst(24576,0,-999);// 60000000^-999
+		do g._setConst(0,0,-512);	// 00000000		special case: min. exp.
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 308; }
+											// test 309: _normalize: arg overflow
+		do f._setConst(24576,0,999);// 60000000^999
+		do g._setConst(32767, -1, 511);// inf.
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 309; }
+											// test 310: _normalize: smallest +
+		do f._setConst(16384,0,-512);// 40000000
+		do g.set(f);
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 310; }
+											// test 311: _normalize: smallest -
+		do f._setConst(-16384,0,-512);// C0000000
+		do g.set(f);
+		do f._normalize();
+		if (~FloatTest.compare(f,g)) {
+			return 311; }
+
+		do f.setInt(1024);					// test 3: setInt
+		do g.setInt(-1024);
+		if (~( (f._msw()=16384) & (f._lsw()=0) & (f._exp()=10) &
+			   (g._msw()=-16384) & (g._lsw()=0) & (g._exp()=10) )) {
+			do f._dump();
+			do g._dump();
+			return 3; }
+
+		do f.setInt(0);						// test 4: setInt part 2
+		do g.setInt(-9);
+		if (~( (f._msw()=0) & (f._lsw()=0) & (f._exp()=-512) &
+			   (g._msw()=-18432) & (g._lsw()=0) & (g._exp()=3) )) {
+			do f._dump();
+			do g._dump();
+			return 4; }
+
+		do f.setInt(9);						// test 5: neg
+		do f.neg();
+		if (~( (f._msw()=-18432) & (f._lsw()=0) & (f._exp()=3) )) {
+			do f._dump();
+			return 5; }
+											// test 501: neg largest +
+		do f._setConst(32767,-1,511);	// 7FFFFFFF
+		do g._setConst(MIN_INT,1,511);	// 80000001
+		do f.neg();
+		if (~FloatTest.compare(f,g)) {
+			return 501; }
+											// test 502: neg largest -
+		do f._setConst(MIN_INT,1,511);	// 80000001
+		do g._setConst(32767,-1,511);	// 7FFFFFFF
+		do f.neg();
+		if (~FloatTest.compare(f,g)) {
+			return 502; }
+											// test 503: neg smallest +
+		do f._setConst(16384,0,-512);	// 40000000
+		do g._setConst(-16384,0,-512);	// C0000000
+		do f.neg();
+		if (~FloatTest.compare(f,g)) {
+			return 503; }
+											// test 504: neg smallest -
+		do f._setConst(16384,0,-512);	// 40000000
+		do g._setConst(-16384,0,-512);	// C0000000
+		do f.neg();
+		if (~FloatTest.compare(f,g)) {
+			return 504; }
+
+		do f._setConst(18432,0,4);			// test 6: add that requires denormalization
+		do g._setConst(18432,0,-12);
+		do f.add(g);
+		if (~( (f._msw()=18432) & (f._lsw()=18432) & (f._exp()=4) )) {
+			do f._dump();
+			return 6; }
+
+		do f._setConst(18432,0,4);			// test 6: add with off scale operand
+		do g._setConst(18432,0,-64);
+		do f.add(g);
+		if (~( (f._msw()=18432) & (f._lsw()=0) & (f._exp()=4) )) {
+			do f._dump();
+			return 6; }
+
+		do f._setConst(18432,0,4);			// test 7: add requiring right shift to renormalize
+		do g._setConst(18432,0,4);
+		do f.add(g);
+		if (~( (f._msw()=18432) & (f._lsw()=0) & (f._exp()=5) )) {
+			do f._dump();
+			return 7; }
+
+		do f.setInt(4);						// test 8: addInt
+		do f.addInt(5);
+		if (~( (f._msw()=18432) & (f._lsw()=0) & (f._exp()=3) )) {
+			do f._dump();
+			return 8; }
+
+		do f._setConst(18432,0,4);			// test 9: sub
+		do g._setConst(18432,0,-12);
+		do f.sub(g);
+		if (~( (f._msw()=18431) & (f._lsw()=-18432) & (f._exp()=4) )) {
+			do f._dump();
+			return 9; }
+
+		do f.setInt(14);					// test 10: subInt
+		do f.subInt(5);
+		if (~( (f._msw()=18432) & (f._lsw()=0) & (f._exp()=3) )) {
+			do f._dump();
+			return 10; }
+
+		do f.setInt(14);					// test 11: compare >
+		do g.setInt(3);
+			if (~( f.compare(g)>0) ) {
+			return 11; }
+
+		do f.setInt(7);						// test 12: compare =
+		do g.setInt(7);
+			if (~( f.compare(g)=0) ) {
+			return 12; }
+
+		do f.setInt(14);					// test 13: compare <
+		do g.setInt(21);
+			if (~( f.compare(g)<0) ) {
+			return 13; }
+
+		do f.setInt(2);						// test 14: mult sign test ++
+		do g.setInt(3);
+		do f.mult(g);
+		if (~( (f._msw()=24576) & (f._lsw()=0) & (f._exp()=2) )) {
+			do f._dump();
+			return 14; }
+
+		do f.setInt(2);						// test 15: mult sign test +-
+		do g.setInt(-3);
+		do f.mult(g);
+		if (~( (f._msw()=-24576) & (f._lsw()=0) & (f._exp()=2) )) {
+			do f._dump();
+			return 15; }
+
+		do f.setInt(-2);					// test 16: mult sign test -+
+		do g.setInt(3);
+		do f.mult(g);
+		if (~( (f._msw()=-24576) & (f._lsw()=0) & (f._exp()=2) )) {
+			do f._dump();
+			return 16; }
+
+		do f.setInt(-2);					// test 17: mult sign test --
+		do g.setInt(-3);
+		do f.mult(g);
+		if (~( (f._msw()=24576) & (f._lsw()=0) & (f._exp()=2) )) {
+			do f._dump();
+			return 17; }
+
+		do f._setConst(24577,0,0);			// test 18: mult 31 bit result
+		do g._setConst(24577,MIN_INT,0);
+		do f.mult(g);
+		if (~( (f._msw()=18433) & (f._lsw()=-8189) & (f._exp()=1) )) {
+			do f._dump();
+			return 18; }
+
+		do f._setConst(20481,MIN_INT,0);	// test 19: mult 31 bit result
+		do g._setConst(20481,MIN_INT,0);	//			with extra SHL
+		do f.mult(g);
+		if (~( (f._msw()=25603) & (f._lsw()=-16375) & (f._exp()=0) )) {
+			do f._dump();
+			return 19; }
+
+		do f.setInt(2);						// test 20: multInt
+		do f.multInt(-3);
+		if (~( (f._msw()=-24576) & (f._lsw()=0) & (f._exp()=2) )) {
+			do f._dump();
+			return 20; }
+
+		do f.setInt(2);						// test 21: div sign test ++
+		do g.setInt(1);
+		do f.div(g);
+		if (~( (f._msw()=16384) & (f._lsw()=0) & (f._exp()=1) )) {
+			do f._dump();
+			return 21; }
+
+		do f.setInt(2);						// test 22: div sign test +-
+		do g.setInt(-1);
+		do f.div(g);
+		if (~( (f._msw()=-16384) & (f._lsw()=0) & (f._exp()=1) )) {
+			do f._dump();
+			return 22; }
+
+		do f.setInt(-2);					// test 23: div sign test -+
+		do g.setInt(1);
+		do f.div(g);
+		if (~( (f._msw()=-16384) & (f._lsw()=0) & (f._exp()=1) )) {
+			do f._dump();
+			return 23; }
+
+		do f.setInt(-2);					// test 24: div sign test --
+		do g.setInt(-1);
+		do f.div(g);
+		if (~( (f._msw()=16384) & (f._lsw()=0) & (f._exp()=1) )) {
+			do f._dump();
+			return 24; }
+
+		do f.setInt(199);					// test 25: div exact result
+		do f.multInt(211);
+		do g.set(f);
+		do f.multInt(223);
+		do f.multInt(227);
+		do f.div(g);
+		if (~( (f._msw()=25310) & (f._lsw()=MIN_INT) & (f._exp()=15) )) {
+			do f._dump();
+			return 25; }
+			
+		do f.setInt(1);						// test 26: div inexact 31-bit result
+		do g.setInt(7);						//				mant(f) < mant(g)
+		do f.div(g);
+		if (~( (f._msw()=18724) & (f._lsw()=-28087) & (f._exp()=-3) )) {
+			do f._dump();
+			return 26; }
+
+		do f.setInt(7);						// test 27: div inexact 31-bit result
+		do g.setInt(11);					//				mant(f) > mant(g)
+		do f.div(g);
+		if (~( (f._msw()=20852) & (f._lsw()=23831) & (f._exp()=-1) )) {
+			do f._dump();
+			return 27; }
+
+		do f.setInt(1);						// test 28: divInt
+		do f.divInt(-7);
+		if (~( (f._msw()=-18725) & (f._lsw()=28087) & (f._exp()=-3) )) {
+			do f._dump();
+			return 28; }
+
+		do f._setConst(25603,-16375,0);		// test 29: sqrt exact 15-bit result
+		do f.sqrt();
+		if (~( (f._msw()=20481) & (f._lsw()=MIN_INT) & (f._exp()=0) )) {
+			do f._dump();
+			return 29; }
+
+		do f.setInt(3);						// test 30: sqrt inexact 15-bit result
+		do f.sqrt();
+		if (~( (f._msw()=28377) & (f._lsw()=-5215) & (f._exp()=0) )) {
+			do f._dump();
+			return 30; }
+
+		do f.dispose();
+		do g.dispose();
+		return 0;
+	}
+
+
+	function bool compare(Float f, Float x)
+	{
+		if ((f._msw()=x._msw()) & (f._lsw()=x._lsw()) & (f._exp()=x._exp())) {
+			return true; }
+		do Output.printString(is);
+		do f._dump();
+		do Output.printString(s_b);
+		do x._dump();
+		do Output.println();
+		return false;
+	}
+
+
+
+	
+	function int testRounding()
+	{
+		var Float f;
+		var Float g;
+		var Float x;
+
+		let f = Float.new();
+		let g = Float.new();
+		let x = Float.new();
+											// test 1: add LSW.0
+		do f._setConst(16384,0,0);			//		40000000 0
+		do g._setConst(16384,1,-1);			//		40000001 -1
+		do x._setConst(24576,1,0);			//		60000001 0
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 1; }
+											// test 2: add LSW.1
+		do f._setConst(16384,2,-2);			//		40000002 -2		f,g swapped to test
+		do g._setConst(16384,0,0);			//		40000000 0		for argument order
+		do x._setConst(20480,1,0);			//		50000001 0		dependence
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 2; }
+											// test 3: add LSW.15
+		do f._setConst(16384,0,0);			//		40000000 0
+		do g._setConst(16384,MIN_INT,-16);	//		40008000 -16
+		do x._setConst(16384,16385,0);		//		40004001 0
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 3; }
+											// test 4: add MSW.0
+		do f._setConst(16384,0,0);			//		40000000 0
+		do g._setConst(16385,0,-17);		//		40010000 -17
+		do x._setConst(16384,8193,0);		//		40002001 0
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 4; }
+											// test 5: add MSW.1
+		do f._setConst(16384,0,0);			//		40000000 0
+		do g._setConst(16386,0,-18);		//		40020000 -18
+		do x._setConst(16384,4097,0);		//		40001001 0
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 5; }
+											// test 6: add LSW.14
+		do f._setConst(16384,0,0);			//		40000000 0
+		do g._setConst(16384,0,-31);		//		40000000 -31
+		do x._setConst(16384,1,0);			//		40000001 0
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 6; }
+											// test 7: add rounding overflow
+		do f._setConst(32767,-1,0);			//		7FFFFFFF 0
+		do g._setConst(16384,0,-31);		//		40000000 -31
+		do x._setConst(16384,0,1);			//		40000000 1
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 7; }
+											// test 8: add negative arguments + result
+		do f.setInt(4);	
+		do g.setInt(-3);
+		do x.setInt(1);
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 8; }
+											// test 9: add negative arguments - result
+		do f.setInt(4);	
+		do g.setInt(-5);
+		do x.setInt(-1);
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 9; }
+											// test 10: add small negative argument + result
+		do f.setInt(4);	
+		do g.setInt(-3);
+		do g.divInt(2048);
+		do g.divInt(2048);
+		do g.divInt(1024);
+		do x.setInt(4);
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 10; }
+											// test 11: add small negative argument - result
+		do f.setInt(-4);	
+		do g.setInt(-3);
+		do g.divInt(2048);
+		do g.divInt(2048);
+		do g.divInt(1024);
+		do x.setInt(-4);
+		do f.add(g);
+		if (~FloatTest.compare(f,x)) {
+			return 11; }
+											// test 12: mult with round
+		do f._setConst(22136, -25924, 0);		// 56789abc
+		do g._setConst(30874, -17186, 0);		// 789abcde
+		do x._setConst(20857, (-26175)+1, 1);	// 517999c1 86a07e10
+		do f.mult(g);
+		if (~FloatTest.compare(f,x)) {
+			return 12; }
+											// test 13: mult requiring SHL with round
+		do f._setConst(17185, -26506, 0);		// 43219876
+		do g._setConst(30292, 4660, 0);			// 76541234
+		do x._setConst(31774, 8265+1, 0);		// 7c1e2049 a90d0fe0
+		do f.mult(g);
+		if (~FloatTest.compare(f,x)) {
+			return 13; }
+											// test 14: div with round
+		do f.setInt(1); 
+		do g.setInt(9); 
+		do x._setConst(29127, 7281+1, -4);		// 71c71c71 c71c71c7
+		do f.div(g);
+		if (~FloatTest.compare(f,x)) {
+			return 14; }
+
+
+		do f.dispose();
+		do g.dispose();
+		return 0;
+	}
+
+
+	function int testConversion()
+	{
+		var Float e;
+		var Float f;
+		var Float x;
+		var String xs;
+		var String s;
+		var int i;
+		var int xi;
+		let e = Float.new();
+		let f = Float.new();
+		let x = Float.new();
+
+		do e.setString("1e-9");
+									// test 100: _floor(1.5)
+		do f._setConst(24576, 0, 0);
+		let xi=1;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 100;
+		}
+									// test 101: _floor(-1.5)
+		do f._setConst(-24576, 0, 0);
+		let xi=-2;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 101;
+		}
+									// test 102: _floor(0)
+		do f.setInt(0);
+		let xi=0;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 102;
+		}
+									// test 103: _floor(1)
+		do f.setInt(1);
+		let xi=1;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 103;
+		}
+									// test 104: _floor(-1)
+		do f.setInt(-1);
+		let xi=-1;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 104;
+		}
+									// test 105: _floor(close to 0)
+		do f._setConst(24576, 0, -100);
+		let xi=0;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 105;
+		}
+									// test 106: _floor(-close to 0)
+		do f._setConst(-24576, 0, -100);
+		let xi=-1;
+		let i = f._floor();
+		if (~FloatTest.compare_I(i, xi)) {
+			return 106;
+		}
+									// test 1: setString: 10 digits
+		do f.setString("3.141592654");
+		do x._setConst(25735,-4783,1);	// pi
+		if (~FloatTest.compare_E(f, x, e)) {
+			return 1;
+		}
+									// test 2: setString: large exponent
+		do f.setString("-1e100");
+		do x._setConst(18726,-19306,332);	// 1.0e+100
+		do x.neg();
+		if (~FloatTest.compare_E(f, x, e)) {
+			return 2;
+		}
+									// test 3: setString: large -exponent
+		do f.setString("1e-100");
+		do x._setConst(28668,-17518,-333);	// 1.0e-100
+		if (~FloatTest.compare_E(f, x, e)) {
+			return 3;
+		}
+									// test 4: toString: 9 digits
+		let xs = "1.23456789e-010";
+		do f.setString(xs);
+		let s = f.toString(9);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 4;
+		}
+									// test 5: toString: 4 digits
+		let xs = "-1.234e+056";
+		do f.setString(xs);
+		let s = f.toString(4);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 5;
+		}
+									// test 6: toString: 1 digit 0
+		let xs = "0.e+000";
+		do f.setString(xs);
+		let s = f.toString(1);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 6;
+		}
+									// test 61: toString: 10 digit 0
+		let xs = "0.000000000e+000";
+		do f.setString(xs);
+		let s = f.toString(10);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 61;
+		}
+									// test 7: toString: +inf
+		let xs = "+inf.";
+		do f.setString("1e+999");
+		let s = f.toString(1);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 7;
+		}
+									// test 8: toString: -inf
+		let xs = "-inf.";
+		do f.setString("-1e+999");
+		let s = f.toString(1);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 7;
+		}
+									// test 9: toString: underflow to 0
+		let xs = "0.00e+000";
+		do f.setString("1e-999");
+		let s = f.toString(3);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 9;
+		}
+									// test 10: toString: -underflow to 0
+		let xs = "0.00e+000";
+		do f.setString("-1e-999");
+		let s = f.toString(3);
+		if (~FloatTest.compare_S(s, xs)) {
+			return 10;
+		}
+
+
+		do e.dispose();
+		do f.dispose();
+		do x.dispose();
+		return 0;
+	}
+
+
+	function bool compare_S(String s, String x)
+	{
+		var int i;
+		var bool match;
+		let match = true;
+		if (~(s.length()=x.length())) {
+			let match = false; }
+		else {
+			while (i<s.length()) {
+				if (~(s.charAt(i)=x.charAt(i))) {
+					let match = false; }
+			let i = i+1;
+			}
+		}
+		if (~match) {
+			do Output.printString(is);
+			do Output.printString(s);
+			do Output.printChar(32);
+			do Output.printString(s_b);
+			do Output.printString(x);
+			do Output.println();
+		}
+		return match;
+	}
+
+
+	function bool compare_E(Float f, Float x, Float e)
+	{
+		var Float g;
+		let g = Float.newFloat(f);
+		do g.set(f);
+		do g.sub(x);
+		do g.div(x);
+		if (g.isNeg()) { do g.neg(); }
+		if (g.compare(e)>0) {
+			do Output.printString(is);
+			do f._dump();
+			do Output.printString(s_b);
+			do x._dump();
+			do Output.println();
+			do g.dispose();
+			return false;
+		}
+		do g.dispose();
+		return true;
+	}
+
+
+	function bool compare_I(int f, int x)
+	{
+		if (~(f=x)) {
+			do Output.printString(is);
+			do Output.printInt(f);
+			do Output.printChar(32);
+			do Output.printString(s_b);
+			do Output.printInt(x);
+			do Output.println();
+			return false;
+		}
+		return true;
+	}
+
+}
+
