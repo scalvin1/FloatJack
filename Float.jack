@@ -1225,7 +1225,7 @@ class Float {
 	/**
 	 *	Convert this Float to a string with 'n' mantissa digits.
 	 *
-	 *	The string format is [-]n.nnnE±xxx
+	 *	The string format is [-]n.nnnEÂ±xxx
 	 *	The maximum representable number is returned as "+/-inf."
 	 *
 	 *		let new_String = f.toString(n);
@@ -1327,7 +1327,7 @@ class Float {
 	/**
 	 *	Set this Float from a String.
 	 *
-	 *	The input string format is +-nn.nnnE±nn
+	 *	The input string format is +-nn.nnnEÂ±nn
 	 *	The signs are optional.  The exponent is optional and can
 	 *	use 'E' or 'e'.
 	 *
